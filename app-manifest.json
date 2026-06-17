@@ -1,0 +1,22 @@
+{
+  "$comment": "Anna App manifest for Meeting AI. Field names are best-effort pending Anna's published manifest spec; the capabilities and description are accurate.",
+  "name": "Meeting AI",
+  "slug": "meeting-ai",
+  "version": "0.1.0",
+  "publisher": "ThavionAI",
+  "homepage": "https://thavionai.com",
+  "description": "Live meeting copilot that listens to meeting transcripts, detects questions, generates real-time answers, and produces summaries / action items — powered by Anna's hosted LLM (no personal API key required).",
+  "capabilities": [
+    "live transcript processing",
+    "question detection",
+    "answer generation",
+    "meeting summary",
+    "action item extraction"
+  ],
+  "executa": "./executa.json",
+  "ai": {
+    "uses": "anna-hosted-llm",
+    "personal_api_key_required": false,
+    "fallback_mode": "byok"
+  }
+}

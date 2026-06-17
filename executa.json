@@ -1,0 +1,73 @@
+{
+  "$comment": "Anna Executa tool manifest for Meeting AI. NOTE: the exact Executa schema was not publicly documented at build time — field names here are best-effort and may need to be aligned to Anna's real executa.json spec. The tool entrypoint (cli.mjs) and tool contracts are implemented and runnable today.",
+  "name": "meeting-ai",
+  "version": "0.1.0",
+  "displayName": "Meeting AI",
+  "description": "Live meeting copilot: detects questions in a transcript, answers them, and summarizes the meeting — running on Anna's hosted LLM, no personal API key required.",
+  "runtime": "node",
+  "entry": "cli.mjs",
+  "provider": {
+    "env": "AI_PROVIDER",
+    "default": "anna",
+    "supported": ["anna", "byok"]
+  },
+  "tools": [
+    {
+      "name": "detect_question",
+      "description": "Determine whether a transcript chunk contains a real question.",
+      "invoke": { "command": "node cli.mjs --invoke detect_question --args {args}" },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "transcript_chunk": { "type": "string" },
+          "meeting_context": { "type": "string" }
+        },
+        "required": ["transcript_chunk"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "is_question": { "type": "boolean" },
+          "question": { "type": "string" },
+          "confidence": { "type": "number" }
+        }
+      }
+    },
+    {
+      "name": "answer_question",
+      "description": "Answer a detected question using the meeting context.",
+      "invoke": { "command": "node cli.mjs --invoke answer_question --args {args}" },
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "meeting_context": { "type": "string" }
+        },
+        "required": ["question"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": { "answer": { "type": "string" } }
+      }
+    },
+    {
+      "name": "summarize_meeting",
+      "description": "Summarize a full transcript into a summary, decisions, action items and a follow-up email.",
+      "invoke": { "command": "node cli.mjs --invoke summarize_meeting --args {args}" },
+      "input_schema": {
+        "type": "object",
+        "properties": { "transcript": { "type": "string" } },
+        "required": ["transcript"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "string" },
+          "decisions": { "type": "array", "items": { "type": "string" } },
+          "action_items": { "type": "array", "items": { "type": "string" } },
+          "follow_up_email": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

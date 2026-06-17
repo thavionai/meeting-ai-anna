@@ -1,0 +1,7 @@
+[10:02] Alice: Thanks everyone for joining the Anna hackathon sync.
+[10:02] Alice: Quick agenda — show Meeting AI running on Anna, then talk next steps.
+[10:03] Bob: Can someone explain how this app works on Anna without using Prashanth's API key?
+[10:03] Alice: Good question — that's exactly what we're demoing.
+[10:04] Carol: We decided to keep BYOK mode and add Anna as a second provider.
+[10:04] Bob: Action item for me: record the 2-minute demo video before Friday.
+[10:05] Alice: And Carol will write the README section comparing BYOK vs Anna mode.
