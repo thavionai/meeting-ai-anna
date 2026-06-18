@@ -19,7 +19,8 @@
     ],
     "host_api": {
       "llm": ["complete"],
-      "storage": ["get", "set", "delete"]
+      "storage": ["get", "set", "delete"],
+      "window": ["resize"]
     }
   }
 }

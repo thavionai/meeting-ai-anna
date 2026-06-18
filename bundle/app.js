@@ -207,10 +207,40 @@ function toggleHistory() {
   else { renderHistory(); p.style.display = 'block'; out.style.display = 'none'; $('history').textContent = 'Live' }
 }
 
+// Email the conversation (browser mailto — opens the user's mail client).
+function conversationText() {
+  const parts = []
+  if ($('transcript').value.trim()) parts.push('Transcript:\n' + $('transcript').value.trim() + '\n')
+  for (const it of history) {
+    parts.push(it.kind === 'summary' ? '--- Summary ---\n' + it.text : 'Q: ' + it.q + '\nA: ' + it.a)
+  }
+  return parts.join('\n\n')
+}
+function emailConversation() {
+  const text = conversationText()
+  if (!text.trim()) { setMic('Nothing to email yet', 'err'); return }
+  const href = 'mailto:?subject=' + encodeURIComponent('Meeting AI — conversation') +
+    '&body=' + encodeURIComponent(text.slice(0, 1800))
+  const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener'
+  document.body.appendChild(a); a.click(); a.remove()
+}
+
+// Minimize → compact bar (no true minimize in the window API; resize instead).
+let compact = false
+async function toggleMinimize() {
+  try {
+    compact = !compact
+    await anna?.window?.resize(compact ? { w: 420, h: 180 } : { w: 880, h: 720 })
+    $('min').textContent = compact ? 'Expand' : 'Minimize'
+  } catch { /* window API may differ — ignore */ }
+}
+
 // Always-on UI wiring (works regardless of Anna; reasoning needs the host).
 $('run').addEventListener('click', run)
 $('summarize').addEventListener('click', doSummarize)
 $('history').addEventListener('click', toggleHistory)
+$('email').addEventListener('click', emailConversation)
+$('min').addEventListener('click', toggleMinimize)
 $('ask').addEventListener('click', () => { ask($('askInput').value); $('askInput').value = '' })
 $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask($('askInput').value); $('askInput').value = '' } })
 $('clear').addEventListener('click', async () => {
