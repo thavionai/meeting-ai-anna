@@ -14,8 +14,11 @@ const $ = (id) => document.getElementById(id)
 const out = $('out')
 
 const DETECT_SYSTEM =
-  'You are Meeting AI. Decide whether this transcript chunk contains a real question a ' +
-  'participant wants answered. Return JSON only: {"is_question":boolean,"question":string,"confidence":number}.'
+  'You are Meeting AI. The chunk is live speech-to-text — it may be unpunctuated and ' +
+  'contain several sentences. If ANY part is a question a participant wants answered, set ' +
+  'is_question true and put the single most important question (cleaned up, ending with a ' +
+  'question mark) in "question". Greetings/small talk are not questions. ' +
+  'Return JSON only: {"is_question":boolean,"question":string,"confidence":number}.'
 const ANSWER_SYSTEM =
   'You are Meeting AI, a live meeting copilot. Answer the question using the meeting context. ' +
   'Be concise, professional, and speakable. Do not refer to yourself as an AI.'
@@ -44,13 +47,22 @@ function parseJson(text) {
   try { return JSON.parse(s) } catch { return null }
 }
 
+// Heuristic question cue anywhere in (often unpunctuated) speech.
+const QWORDS = /\b(what|why|how|can|could|do|does|did|is|are|was|were|when|where|who|whom|which|should|would|will|won't|need to|is there|are there|any update|explain|tell me|let me know)\b/i
+function heuristic(chunk) {
+  const t = chunk.trim()
+  const isQ = t.includes('?') || QWORDS.test(t)
+  return { is_question: isQ, question: isQ ? (t.endsWith('?') ? t : t + '?') : '', confidence: isQ ? 0.7 : 0.9 }
+}
+
 async function detect(chunk, context) {
-  const r = parseJson(await complete(DETECT_SYSTEM, `Context:\n${context}\n\nChunk:\n${chunk}`, 200))
-  if (r && typeof r.is_question === 'boolean') {
-    return { is_question: r.is_question, question: String(r.question ?? ''), confidence: Number(r.confidence ?? 0.75) }
-  }
-  const isQ = /\?$/.test(chunk.trim()) || /^(what|why|how|can|could|do|does|is|are|should|would|when|where|who|explain|tell)/i.test(chunk.trim())
-  return { is_question: isQ, question: isQ ? chunk.trim() : '', confidence: isQ ? 0.7 : 0.9 }
+  try {
+    const r = parseJson(await complete(DETECT_SYSTEM, `Context:\n${context}\n\nChunk:\n${chunk}`, 500))
+    if (r && typeof r.is_question === 'boolean') {
+      return { is_question: r.is_question, question: String(r.question ?? '').trim() || chunk.trim(), confidence: Number(r.confidence ?? 0.75) }
+    }
+  } catch { /* fall through to heuristic */ }
+  return heuristic(chunk)   // model returned empty/unparseable → don't miss the question
 }
 const answer = (question, context) => complete(ANSWER_SYSTEM, `Context:\n${context}\n\nQuestion:\n${question}`)
 async function summarize(transcript) {
@@ -87,7 +99,7 @@ function processLine(line) {
   if (!text) return
   enqueue(async () => {
     const det = await detect(text, ctx())
-    if (det.is_question && det.confidence >= 0.6) {
+    if (det.is_question && det.confidence >= 0.5) {
       const fill = renderQA(det.question)
       fill(await answer(det.question, ctx()))
     }
