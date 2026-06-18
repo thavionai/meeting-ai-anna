@@ -245,9 +245,12 @@ async function exportFile(filename, mime, content_b64, label) {
     await anna.chat.append_artifact({ artifact: { kind: 'document', summary: `Meeting AI export: ${filename}`, payload_ref: up.download_url, data: { filename, download_url: up.download_url } } })
     setMic(`${label} saved → download link posted in the Anna chat`, 'live')
   } catch (e) {
-    try {   // fallback: drop the conversation text straight into the chat
-      await anna.chat.append_artifact({ artifact: { kind: 'document', summary: `Meeting AI conversation (${label})`, data: { text: conversationText() } } })
-      setMic(`Couldn't save a file (${e.message}); posted the text to the Anna chat instead`, 'err')
+    const needsGrant = /upload_grant|APP_NOT_GRANTED|403/i.test(e.message || '')
+    try {   // fallback: post the conversation straight into the Anna chat
+      await anna.chat.append_artifact({ artifact: { kind: 'document', summary: `Meeting AI — ${label} export`, data: { text: conversationText() } } })
+      setMic(needsGrant
+        ? `Posted the conversation to the Anna chat. (Downloadable files need the upload grant enabled on your account.)`
+        : `Posted the conversation to the Anna chat instead.`, 'live')
     } catch (e2) { setMic('Export failed: ' + (e2.message || e2), 'err') }
   }
 }
