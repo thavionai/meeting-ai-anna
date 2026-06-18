@@ -190,16 +190,24 @@ function toggleListen() {
 micBtn.addEventListener('click', toggleListen)
 
 // History panel — shows everything saved (persisted across reloads).
+let histDays = 0   // 0 = all time
 function renderHistory() {
-  const p = $('historyPanel')
-  if (!history.length) { p.innerHTML = '<div class="card a muted">No history yet — ask a question or summarize.</div>'; return }
-  p.innerHTML = '<div class="label" style="margin:6px 0">History (' + history.length + ')</div>' +
-    history.slice().reverse().map((it) => {
-      const t = it.ts ? new Date(it.ts).toLocaleString() : ''
-      return it.kind === 'summary'
-        ? `<div class="card"><div class="label">Summary · ${esc(t)}</div><div class="a">${esc(it.text)}</div></div>`
-        : `<div class="card"><div class="q">❓ ${esc(it.q)}</div><div class="a">${esc(it.a)}</div><div class="label" style="margin-top:6px">${esc(t)}</div></div>`
-    }).join('')
+  const p = $('historyPanel'), now = Date.now()
+  const items = history.filter((it) => !histDays || (it.ts && now - it.ts <= histDays * 86400000))
+  const picker = `<div class="row" style="margin:6px 0"><span class="muted" style="font-size:12px">Show last</span>` +
+    `<select id="histDays" style="background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 6px">` +
+    `<option value="0">All time</option><option value="1">1 day</option><option value="7">7 days</option><option value="30">30 days</option></select>` +
+    `<span class="muted" style="font-size:12px">${items.length} item(s)</span></div>`
+  const body = items.length
+    ? items.slice().reverse().map((it) => {
+        const t = it.ts ? new Date(it.ts).toLocaleString() : ''
+        return it.kind === 'summary'
+          ? `<div class="card"><div class="label">Summary · ${esc(t)}</div><div class="a">${esc(it.text)}</div></div>`
+          : `<div class="card"><div class="q">❓ ${esc(it.q)}</div><div class="a">${esc(it.a)}</div><div class="label" style="margin-top:6px">${esc(t)}</div></div>`
+      }).join('')
+    : '<div class="card a muted">No history in this range.</div>'
+  p.innerHTML = picker + body
+  const s = $('histDays'); if (s) { s.value = String(histDays); s.onchange = () => { histDays = Number(s.value); renderHistory() } }
 }
 function toggleHistory() {
   const p = $('historyPanel'), showing = p.style.display !== 'none'
@@ -225,6 +233,42 @@ function emailConversation() {
   document.body.appendChild(a); a.click(); a.remove()
 }
 
+// ── Save / share the conversation ────────────────────────────────────────────
+const stamp = () => new Date().toISOString().slice(0, 10)
+function download(filename, content, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }))
+  const a = document.createElement('a'); a.href = url; a.download = filename
+  document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+function saveTxt() { const t = conversationText(); if (t.trim()) download(`meeting-ai-${stamp()}.txt`, t, 'text/plain') }
+function saveDoc() {
+  const t = conversationText(); if (!t.trim()) return
+  const html = `<html xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset="utf-8"></head>` +
+    `<body style="font-family:Calibri,Arial,sans-serif"><h2>Meeting AI — conversation</h2>` +
+    `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif">${esc(t)}</pre></body></html>`
+  download(`meeting-ai-${stamp()}.doc`, html, 'application/msword')
+}
+function savePdf() {
+  const t = conversationText(); if (!t.trim()) return
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Meeting AI — ${stamp()}</title>` +
+    `<style>body{font:13px/1.6 Arial,sans-serif;padding:32px;color:#111}h2{margin:0 0 12px}pre{white-space:pre-wrap;font-family:Arial,sans-serif}</style>` +
+    `</head><body><h2>Meeting AI — conversation</h2><pre>${esc(t)}</pre></body></html>`
+  const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(f)
+  const d = f.contentWindow.document; d.open(); d.write(html); d.close()
+  let printed = false
+  const go = () => { if (printed) return; printed = true; try { f.contentWindow.focus(); f.contentWindow.print() } catch { /* blocked */ } setTimeout(() => f.remove(), 1500) }
+  f.onload = go; setTimeout(go, 400)   // browser print dialog → "Save as PDF"
+}
+async function share() {
+  const t = conversationText(); if (!t.trim()) return
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Meeting AI', text: t }); return }
+    await navigator.clipboard.writeText(t); setMic('Conversation copied to clipboard', 'live')
+  } catch { try { await navigator.clipboard.writeText(t); setMic('Copied to clipboard', 'live') } catch { setMic('Share unavailable here', 'err') } }
+}
+
 // Minimize → compact bar (no true minimize in the window API; resize instead).
 let compact = false
 async function toggleMinimize() {
@@ -241,6 +285,10 @@ $('summarize').addEventListener('click', doSummarize)
 $('history').addEventListener('click', toggleHistory)
 $('email').addEventListener('click', emailConversation)
 $('min').addEventListener('click', toggleMinimize)
+$('saveTxt').addEventListener('click', saveTxt)
+$('saveDoc').addEventListener('click', saveDoc)
+$('savePdf').addEventListener('click', savePdf)
+$('share').addEventListener('click', share)
 $('ask').addEventListener('click', () => { ask($('askInput').value); $('askInput').value = '' })
 $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask($('askInput').value); $('askInput').value = '' } })
 $('clear').addEventListener('click', async () => {
