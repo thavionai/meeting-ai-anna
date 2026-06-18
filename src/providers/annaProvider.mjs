@@ -1,20 +1,20 @@
-// Anna provider — routes reasoning through the Anna Platform's hosted LLM /
-// Sampling API instead of a personal key. This is the hackathon's headline:
-// Meeting AI works on Anna without anyone's OpenAI/Anthropic key.
+// Anna provider — routes reasoning through the Anna App Runtime
+// (anna.llm.complete). The hackathon headline: Meeting AI works on Anna with no
+// personal OpenAI/Anthropic key — the model stays on the Anna Host.
 //
-// The actual network call lives in src/llm.mjs (chatComplete) and the endpoint
-// shape in src/config.mjs (annaBackend). Those are the only spots to adjust if
-// Anna's Sampling API differs from the OpenAI-compatible default.
+// The single integration point is src/anna/runtime.mjs (createAnnaBackend),
+// which calls `anna.llm.complete()` per Anna's App Runtime SDK. Outside an Anna
+// app (e.g. the Node CLI) there's no AnnaAppRuntime, so it falls back to mock.
 
-import { annaBackend } from '../config.mjs'
+import { createAnnaBackend } from '../anna/runtime.mjs'
 import * as core from '../core.mjs'
 
-export function createAnnaProvider() {
-  const backend = annaBackend()
+export function createAnnaProvider(opts = {}) {
+  const backend = createAnnaBackend(opts)
   return {
     id: 'anna',
     label: backend.label,
-    ready: backend.mock ? 'mock (ANNA_API_URL/TOKEN not set)' : `live → ${backend.baseURL} (${backend.model})`,
+    ready: backend.mock ? 'mock (no AnnaAppRuntime — run inside an Anna app)' : 'live → anna.llm.complete()',
     detect_question: (args) => core.detectQuestion(backend, args),
     answer_question: (args) => core.answerQuestion(backend, args),
     summarize_meeting: (args) => core.summarizeMeeting(backend, args),

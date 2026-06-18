@@ -1,5 +1,6 @@
-// Low-level LLM call. One OpenAI-compatible path serves both BYOK and Anna —
-// only the backend descriptor (baseURL / key / model) differs.
+// Low-level LLM call for the BYOK backend (OpenAI-compatible HTTP). Anna does
+// NOT use this — Anna reasoning goes through src/anna/runtime.mjs
+// (anna.llm.complete), which needs no key or endpoint.
 
 /**
  * Non-streaming chat completion against an OpenAI-compatible endpoint.
@@ -14,8 +15,6 @@ export async function chatComplete(backend, messages, opts = {}) {
   body[backend.tokenParam || 'max_tokens'] = maxTokens
   if (json) body.response_format = { type: 'json_object' }
 
-  // ⚠️ Anna INTEGRATION POINT — if Anna's Sampling API is not OpenAI-compatible,
-  // branch here on backend.id === 'anna' and shape the request/response to match.
   const res = await fetch(`${backend.baseURL}/chat/completions`, {
     method: 'POST',
     headers: {

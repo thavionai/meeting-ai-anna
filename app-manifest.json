@@ -13,9 +13,11 @@
     "meeting summary",
     "action item extraction"
   ],
+  "web": "./web/index.html",
   "executa": "./executa.json",
   "ai": {
-    "uses": "anna-hosted-llm",
+    "uses": "anna-app-runtime",
+    "method": "anna.llm.complete",
     "personal_api_key_required": false,
     "fallback_mode": "byok"
   }

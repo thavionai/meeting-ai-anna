@@ -1,10 +1,19 @@
-// Shared implementation of the three reasoning capabilities. Both the BYOK and
-// Anna providers call straight into these — they differ only by the `backend`
-// they pass. When a backend has no credentials (or MOCK=1) we return a
-// deterministic local result so the demo always runs.
+// Shared implementation of the three reasoning capabilities. Providers differ
+// only by the `backend` they pass:
+//   • HTTP backend  (BYOK / Anna-as-OpenAI-compatible) → calls chatComplete()
+//   • sampling backend (real Anna Executa) → calls backend.sampler() (host LLM)
+//   • mock backend → deterministic offline result (zero-setup demos)
 
 import { chatComplete, parseJsonReply } from './llm.mjs'
 import { DETECT_SYSTEM, ANSWER_SYSTEM, SUMMARIZE_SYSTEM, detectUser, answerUser, summarizeUser } from './prompts.mjs'
+
+/** Single completion entry — routes to host sampling or an HTTP endpoint. */
+async function complete(backend, system, user, { maxTokens = 1024, json = false } = {}) {
+  // Anna Executa host sampling: the tool has no key; the host runs the model.
+  if (backend.sampler) return backend.sampler({ system, user, maxTokens })
+  // OpenAI-compatible HTTP (BYOK, or Anna exposed as a REST endpoint).
+  return chatComplete(backend, [{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens, json })
+}
 
 const QUESTION_WORDS = /^(what|why|how|can|could|do|does|did|is|are|was|were|when|where|who|which|should|would|will|may|might|explain|tell|describe|walk)/i
 
@@ -22,11 +31,7 @@ function heuristicQuestion(text = '') {
 export async function detectQuestion(backend, { transcript_chunk = '', meeting_context = '' } = {}) {
   if (backend.mock) return heuristicQuestion(transcript_chunk)
   try {
-    const reply = await chatComplete(
-      backend,
-      [{ role: 'system', content: DETECT_SYSTEM }, { role: 'user', content: detectUser(transcript_chunk, meeting_context) }],
-      { json: true, maxTokens: 200 },
-    )
+    const reply = await complete(backend, DETECT_SYSTEM, detectUser(transcript_chunk, meeting_context), { json: true, maxTokens: 200 })
     const parsed = parseJsonReply(reply)
     if (parsed && typeof parsed.is_question === 'boolean') {
       return {
@@ -48,14 +53,10 @@ export async function answerQuestion(backend, { question = '', meeting_context =
       answer:
         `(${backend.label} mock) Here's a concise take on "${question.trim()}": ` +
         'based on the meeting context, give a direct, confident answer in 2–3 sentences. ' +
-        'Configure a real provider (set AI_PROVIDER + keys) to get a live answer.',
+        'Configure a real provider (Anna sampling or BYOK) to get a live answer.',
     }
   }
-  const answer = await chatComplete(
-    backend,
-    [{ role: 'system', content: ANSWER_SYSTEM }, { role: 'user', content: answerUser(question, meeting_context) }],
-    { maxTokens: 700 },
-  )
+  const answer = await complete(backend, ANSWER_SYSTEM, answerUser(question, meeting_context), { maxTokens: 700 })
   return { answer: answer.trim() }
 }
 
@@ -67,15 +68,10 @@ export async function summarizeMeeting(backend, { transcript = '' } = {}) {
       summary: firstLine ? `${firstLine}.` : 'No transcript provided.',
       decisions: [],
       action_items: [],
-      follow_up_email:
-        `Hi team,\n\nQuick recap: ${firstLine || 'see notes'}.\n\n(${backend.label} mock — configure a real provider for a full summary.)\n\nThanks!`,
+      follow_up_email: `Hi team,\n\nQuick recap: ${firstLine || 'see notes'}.\n\n(${backend.label} mock — configure a real provider for a full summary.)\n\nThanks!`,
     }
   }
-  const reply = await chatComplete(
-    backend,
-    [{ role: 'system', content: SUMMARIZE_SYSTEM }, { role: 'user', content: summarizeUser(transcript) }],
-    { json: true, maxTokens: 900 },
-  )
+  const reply = await complete(backend, SUMMARIZE_SYSTEM, summarizeUser(transcript), { json: true, maxTokens: 900 })
   const parsed = parseJsonReply(reply) || {}
   return {
     summary: String(parsed.summary ?? ''),

@@ -11,6 +11,7 @@
     "detect": "node cli.mjs --invoke detect_question --args",
     "answer": "node cli.mjs --invoke answer_question --args",
     "summarize": "node cli.mjs --invoke summarize_meeting --args",
-    "demo": "node demo/run-demo.mjs"
+    "demo": "node demo/run-demo.mjs",
+    "web": "node serve.mjs"
   }
 }
