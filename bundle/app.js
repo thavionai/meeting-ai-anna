@@ -23,16 +23,22 @@ const ANSWER_SYSTEM =
   'You are Meeting AI, a live meeting copilot. Answer the question using the meeting context. ' +
   'Be concise, professional, and speakable. Do not refer to yourself as an AI.'
 const SUMMARIZE_SYSTEM =
-  'You are Meeting AI. Summarize the meeting. Return JSON only: ' +
-  '{"summary":string,"decisions":string[],"action_items":string[],"follow_up_email":string}.'
+  'You are Meeting AI. Write a concise recap of the meeting transcript with short labelled ' +
+  'sections: Summary (one short paragraph), Decisions, Action items, and a brief Follow-up email. ' +
+  'If a section has nothing, write "None". Plain text / simple markdown — do NOT return JSON.'
 
 let anna = null
 
 /** One LLM call through the Anna host. Retries once if the model returns empty
  *  text (the shared demo model occasionally yields an empty completion). */
-async function complete(system, user, maxTokens = 700) {
+async function complete(system, user, maxTokens = 600) {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const reply = await anna.llm.complete({ messages: [{ role: 'user', content: user }], systemPrompt: system, maxTokens })
+    const reply = await anna.llm.complete({
+      messages: [{ role: 'user', content: user }],
+      systemPrompt: system,
+      maxTokens,
+      modelPreferences: { speedPriority: 0.8, intelligencePriority: 0.3, costPriority: 0.5 },
+    })
     const text = reply?.content?.text ?? reply?.content?.[0]?.text ?? ''
     if (text.trim()) return text
   }
@@ -64,10 +70,10 @@ async function detect(chunk, context) {
   } catch { /* fall through to heuristic */ }
   return heuristic(chunk)   // model returned empty/unparseable → don't miss the question
 }
-const answer = (question, context) => complete(ANSWER_SYSTEM, `Context:\n${context}\n\nQuestion:\n${question}`)
+const answer = (question, context) => complete(ANSWER_SYSTEM, `Context:\n${context}\n\nQuestion:\n${question}`, 400)
 async function summarize(transcript) {
-  return parseJson(await complete(SUMMARIZE_SYSTEM, `Transcript:\n${transcript}`, 900))
-    || { summary: '', decisions: [], action_items: [], follow_up_email: '' }
+  if (!transcript.trim()) return ''
+  return (await complete(SUMMARIZE_SYSTEM, `Transcript:\n${transcript}`, 700)).trim()
 }
 
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
@@ -79,19 +85,34 @@ function renderQA(question) {
   const a = c.querySelector('.a')
   return (text) => { a.classList.remove('muted'); a.textContent = text || '(no answer)' }
 }
-function renderSummary(s) {
-  const list = (arr) => (arr && arr.length) ? '<ul>' + arr.map((x) => `<li>${esc(x)}</li>`).join('') + '</ul>' : '<div class="muted">—</div>'
-  card(
-    `<div class="label">Meeting summary</div><div class="a">${esc(s.summary || '(none yet)')}</div>` +
-    `<div class="label" style="margin-top:10px">Decisions</div>${list(s.decisions)}` +
-    `<div class="label" style="margin-top:10px">Action items</div>${list(s.action_items)}` +
-    `<div class="label" style="margin-top:10px">Follow-up email</div><pre>${esc(s.follow_up_email || '—')}</pre>`,
-  )
+function renderSummary(text) {
+  card(`<div class="label">Meeting summary</div><div class="a">${esc(text || '(empty — try Summarize again)')}</div>`)
+  return text
 }
 
 // Serialize host calls so live speech + clicks never overlap.
 let chain = Promise.resolve()
 const enqueue = (fn) => (chain = chain.then(fn).catch((e) => { card(`<div class="q">Error</div><div class="a">${esc(e.message)}</div>`) }))
+
+// ── Persistent history via the host App storage (survives refresh) ───────────
+const HKEY = 'session'
+let history = []
+async function save() {
+  try { await anna?.storage?.set({ key: HKEY, value: { transcript: $('transcript').value, items: history.slice(-200) } }) } catch { /* storage optional */ }
+}
+async function restore() {
+  try {
+    const got = await anna.storage.get({ key: HKEY })
+    if (got?.exists && got.value) {
+      if (got.value.transcript) $('transcript').value = got.value.transcript
+      history = Array.isArray(got.value.items) ? got.value.items : []
+      for (const it of history) {   // chronological → newest ends on top (cards insert at top)
+        if (it.kind === 'qa') renderQA(it.q)(it.a)
+        else if (it.kind === 'summary') renderSummary(it.text)
+      }
+    }
+  } catch { /* storage optional */ }
+}
 
 // Live: detect a single utterance and, if it's a question, answer it.
 function processLine(line) {
@@ -99,16 +120,25 @@ function processLine(line) {
   if (!text) return
   const h = heuristic(text)   // instant detection — no extra host round-trip
   if (!h.is_question) return
-  enqueue(async () => { const fill = renderQA(h.question); fill(await answer(h.question, ctx())) })
+  enqueue(async () => {
+    const fill = renderQA(h.question); const a = await answer(h.question, ctx()); fill(a)
+    history.push({ kind: 'qa', q: h.question, a }); save()
+  })
 }
 
 // Ask: answer a typed question directly (no detection gate).
 function ask(question) {
   const q = question.trim(); if (!q) return
-  enqueue(async () => { const fill = renderQA(q); fill(await answer(q, ctx())) })
+  enqueue(async () => {
+    const fill = renderQA(q); const a = await answer(q, ctx()); fill(a)
+    history.push({ kind: 'qa', q, a }); save()
+  })
 }
 
-function doSummarize() { enqueue(async () => renderSummary(await summarize($('transcript').value))) }
+function doSummarize() {
+  if (!$('transcript').value.trim()) { card('<div class="a muted">Nothing to summarize yet — speak or paste a transcript first.</div>'); return }
+  enqueue(async () => { const t = await summarize($('transcript').value); renderSummary(t); history.push({ kind: 'summary', text: t }); save() })
+}
 
 // Process the whole transcript box (typed/pasted), then summarize.
 function run() {
@@ -163,7 +193,10 @@ $('run').addEventListener('click', run)
 $('summarize').addEventListener('click', doSummarize)
 $('ask').addEventListener('click', () => { ask($('askInput').value); $('askInput').value = '' })
 $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask($('askInput').value); $('askInput').value = '' } })
-$('clear').addEventListener('click', () => { $('transcript').value = ''; out.innerHTML = '' })
+$('clear').addEventListener('click', async () => {
+  $('transcript').value = ''; out.innerHTML = ''; history = []
+  try { await anna?.storage?.delete({ key: HKEY }) } catch { /* ignore */ }
+})
 
 // Connect to the Anna host.
 const statusEl = $('status')
@@ -172,6 +205,7 @@ try {
   anna = await AnnaAppRuntime.connect()
   statusEl.textContent = 'Connected · anna.llm.complete()'
   statusEl.className = 'status live'
+  await restore()   // reload past transcript + Q&A/summary history
 } catch (e) {
   statusEl.textContent = 'Anna runtime unavailable — run with `anna-app dev`'
   statusEl.className = 'status err'
