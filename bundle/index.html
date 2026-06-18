@@ -31,7 +31,11 @@
     <div class="sub">Detect questions → answer → summarize, via <code>anna.llm.complete()</code>. No API key.</div>
     <div><span id="status" class="status">connecting…</span></div>
     <textarea id="transcript"></textarea>
-    <div class="row"><button id="run">Run</button></div>
+    <div class="row">
+      <button id="run">Run</button>
+      <button id="mic" style="background:#374151">🎤 Listen</button>
+      <span class="status" id="micStatus" style="display:none"></span>
+    </div>
     <div id="out"></div>
   </div>
   <script type="module" src="./app.js"></script>

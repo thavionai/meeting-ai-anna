@@ -32,10 +32,15 @@ const SUMMARIZE_SYSTEM =
 
 let anna = null
 
-/** One LLM call through the Anna host. */
+/** One LLM call through the Anna host. Retries once if the model returns empty
+ *  text (the shared demo model occasionally yields an empty completion). */
 async function complete(system, user, maxTokens = 700) {
-  const reply = await anna.llm.complete({ messages: [{ role: 'user', content: user }], systemPrompt: system, maxTokens })
-  return reply?.content?.text ?? reply?.content?.[0]?.text ?? ''
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const reply = await anna.llm.complete({ messages: [{ role: 'user', content: user }], systemPrompt: system, maxTokens })
+    const text = reply?.content?.text ?? reply?.content?.[0]?.text ?? ''
+    if (text.trim()) return text
+  }
+  return ''
 }
 
 function parseJson(text) {
@@ -81,6 +86,35 @@ async function run() {
     card(`<div class="q">Error</div><div class="a">${esc(e.message)}</div>`)
   } finally { $('run').disabled = false }
 }
+
+// ── Live transcription via the browser Web Speech API ────────────────────────
+// Separate from Anna and key-free: the mic → text runs in the browser; only the
+// reasoning (detect/answer/summarize) goes to anna.llm.complete().
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+const micBtn = $('mic'), micStatus = $('micStatus')
+let recog = null, listening = false
+function setMic(msg, kind = '') { micStatus.style.display = 'inline-block'; micStatus.textContent = msg; micStatus.className = 'status ' + kind }
+function appendLine(text) {
+  const ta = $('transcript'), t = text.trim(); if (!t) return
+  ta.value += (ta.value && !ta.value.endsWith('\n') ? '\n' : '') + 'Speaker: ' + t
+  ta.scrollTop = ta.scrollHeight
+}
+function toggleListen() {
+  if (!SR) { setMic('Web Speech API not supported here — type or paste instead', 'err'); return }
+  if (listening) { listening = false; recog && recog.stop(); return }
+  recog = new SR(); recog.continuous = true; recog.interimResults = true; recog.lang = 'en-US'
+  recog.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) appendLine(e.results[i][0].transcript)
+  }
+  recog.onerror = (e) => {
+    const hint = /not-allowed|service-not-allowed/.test(e.error) ? ' (the app window needs microphone permission)' : ''
+    setMic('mic: ' + e.error + hint, 'err'); listening = false; micBtn.textContent = '🎤 Listen'
+  }
+  recog.onend = () => { if (listening) { try { recog.start() } catch {} } else { micBtn.textContent = '🎤 Listen'; setMic('stopped') } }
+  try { recog.start(); listening = true; micBtn.textContent = '⏹ Stop'; setMic('listening…', 'live') }
+  catch (err) { setMic('could not start mic: ' + err.message, 'err') }
+}
+micBtn.addEventListener('click', toggleListen)
 
 // Connect to the Anna host, then enable the UI.
 const statusEl = $('status')
