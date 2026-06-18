@@ -97,6 +97,7 @@ const enqueue = (fn) => (chain = chain.then(fn).catch((e) => { card(`<div class=
 // ── Persistent history via the host App storage (survives refresh) ───────────
 const HKEY = 'session'
 let history = []
+function pushHistory(item) { history.push({ ...item, ts: Date.now() }); save() }
 async function save() {
   try { await anna?.storage?.set({ key: HKEY, value: { transcript: $('transcript').value, items: history.slice(-200) } }) } catch { /* storage optional */ }
 }
@@ -122,7 +123,7 @@ function processLine(line) {
   if (!h.is_question) return
   enqueue(async () => {
     const fill = renderQA(h.question); const a = await answer(h.question, ctx()); fill(a)
-    history.push({ kind: 'qa', q: h.question, a }); save()
+    pushHistory({ kind: 'qa', q: h.question, a })
   })
 }
 
@@ -131,13 +132,13 @@ function ask(question) {
   const q = question.trim(); if (!q) return
   enqueue(async () => {
     const fill = renderQA(q); const a = await answer(q, ctx()); fill(a)
-    history.push({ kind: 'qa', q, a }); save()
+    pushHistory({ kind: 'qa', q, a })
   })
 }
 
 function doSummarize() {
   if (!$('transcript').value.trim()) { card('<div class="a muted">Nothing to summarize yet — speak or paste a transcript first.</div>'); return }
-  enqueue(async () => { const t = await summarize($('transcript').value); renderSummary(t); history.push({ kind: 'summary', text: t }); save() })
+  enqueue(async () => { const t = await summarize($('transcript').value); renderSummary(t); pushHistory({ kind: 'summary', text: t }) })
 }
 
 // Process the whole transcript box (typed/pasted), then summarize.
@@ -188,13 +189,33 @@ function toggleListen() {
 }
 micBtn.addEventListener('click', toggleListen)
 
+// History panel — shows everything saved (persisted across reloads).
+function renderHistory() {
+  const p = $('historyPanel')
+  if (!history.length) { p.innerHTML = '<div class="card a muted">No history yet — ask a question or summarize.</div>'; return }
+  p.innerHTML = '<div class="label" style="margin:6px 0">History (' + history.length + ')</div>' +
+    history.slice().reverse().map((it) => {
+      const t = it.ts ? new Date(it.ts).toLocaleString() : ''
+      return it.kind === 'summary'
+        ? `<div class="card"><div class="label">Summary · ${esc(t)}</div><div class="a">${esc(it.text)}</div></div>`
+        : `<div class="card"><div class="q">❓ ${esc(it.q)}</div><div class="a">${esc(it.a)}</div><div class="label" style="margin-top:6px">${esc(t)}</div></div>`
+    }).join('')
+}
+function toggleHistory() {
+  const p = $('historyPanel'), showing = p.style.display !== 'none'
+  if (showing) { p.style.display = 'none'; out.style.display = ''; $('history').textContent = 'History' }
+  else { renderHistory(); p.style.display = 'block'; out.style.display = 'none'; $('history').textContent = 'Live' }
+}
+
 // Always-on UI wiring (works regardless of Anna; reasoning needs the host).
 $('run').addEventListener('click', run)
 $('summarize').addEventListener('click', doSummarize)
+$('history').addEventListener('click', toggleHistory)
 $('ask').addEventListener('click', () => { ask($('askInput').value); $('askInput').value = '' })
 $('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask($('askInput').value); $('askInput').value = '' } })
 $('clear').addEventListener('click', async () => {
   $('transcript').value = ''; out.innerHTML = ''; history = []
+  $('historyPanel').style.display = 'none'; out.style.display = ''; $('history').textContent = 'History'
   try { await anna?.storage?.delete({ key: HKEY }) } catch { /* ignore */ }
 })
 
