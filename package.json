@@ -3,15 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Anna Platform integration for Meeting AI — Executa tools for question detection, answer generation, and meeting summaries.",
+  "description": "Meeting AI as an Anna App — detects questions, answers them, and summarizes meetings via anna.llm.complete (no API key). Includes an offline BYOK/mock CLI.",
   "engines": { "node": ">=18" },
   "scripts": {
+    "dev": "anna-app dev",
+    "validate": "anna-app validate",
     "describe": "node cli.mjs --describe",
-    "executa": "node cli.mjs",
     "detect": "node cli.mjs --invoke detect_question --args",
     "answer": "node cli.mjs --invoke answer_question --args",
     "summarize": "node cli.mjs --invoke summarize_meeting --args",
-    "demo": "node demo/run-demo.mjs",
-    "web": "node serve.mjs"
+    "demo": "node demo/run-demo.mjs"
   }
 }

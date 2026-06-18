@@ -1,119 +1,93 @@
-# Meeting AI × Anna Platform
+# Meeting AI — Anna App
 
-Anna integration for **Meeting AI** — a live meeting copilot that **detects
-questions**, **generates answers**, and **summarizes** a meeting. On Anna it runs
-its reasoning through the **Anna App Runtime** (`anna.llm.complete()`) — **no API
-key, no backend**. The model, selection, quota and billing all stay on the Anna
-Host; this app just makes the calls.
+Meeting AI as a native **Anna App**: a meeting copilot that **detects questions**,
+**answers** them, and **summarizes** the meeting — running entirely on Anna's host
+LLM via **`anna.llm.complete()`**. **No API key, no backend** in the app; the
+model, quota and billing stay on the Anna Host.
 
-> **BYOK is not removed.** Anna is added as a second provider — flip `AI_PROVIDER`.
+> A second offline path keeps **BYOK** (your own key) for local dev — the desktop
+> Meeting AI app's BYOK behavior is untouched.
 
 ---
 
-## How Anna mode works
+## How it works
 
-Inside an Anna app the host injects `AnnaAppRuntime`. We connect once and call the
-LLM with no key:
+The UI bundle imports the Anna App SDK from the host, connects, and calls the LLM:
 
 ```js
-const anna  = await AnnaAppRuntime.connect()
-const reply = await anna.llm.complete({ messages, maxTokens })
-render(reply.content[0].text)
+import { AnnaAppRuntime } from "/static/anna-apps/_sdk/latest/index.js";
+
+const anna  = await AnnaAppRuntime.connect();
+const reply = await anna.llm.complete({
+  messages: [{ role: "user", content: "…" }],
+  systemPrompt: "You are Meeting AI…",
+  maxTokens: 700,
+});
+const text = reply.content.text;     // object form per the host-api-llm reference
 ```
 
-That single call is the **only** Anna integration point — [`src/anna/runtime.mjs`](src/anna/runtime.mjs).
-Every reasoning task (detect / answer / summarize) goes through it.
-
-| | **Anna mode** (`AI_PROVIDER=anna`) | **BYOK mode** (`AI_PROVIDER=byok`) |
-|---|---|---|
-| Reasoning runs on | **Anna Host** via `anna.llm.complete()` | Your own OpenAI-compatible key |
-| Personal API key | **None** | Required |
-| Backend / model ops | None — stay in Anna | You manage |
-| Transcription | Web Speech / local (never an AI key) | Web Speech / local |
-
-Transcription is deliberately **separate** from reasoning — it never uses an AI
-key in either mode.
-
----
-
-## Run it
-
-Node ≥ 18. No install needed.
-
-### A) The Anna App page (the real Anna path)
-
-```bash
-npm run web      # → http://localhost:5174/web/
-```
-
-Open it inside an **Anna app** and it calls `anna.llm.complete()` live. Opened
-standalone (no `AnnaAppRuntime`), it runs in **mock** mode so you can still see
-the flow: paste a transcript → questions are detected → answered → summarized.
-
-### B) The Executa tools / CLI (local dev + BYOK)
-
-Mirrors the Anna CLI shape:
-
-```bash
-node cli.mjs --describe
-node cli.mjs --invoke detect_question  --args '{"transcript_chunk":"Can you explain the plan?"}'
-node cli.mjs --invoke answer_question  --args '{"question":"How does Anna mode work?"}'
-node cli.mjs --invoke summarize_meeting --args '{"transcript":"We shipped Anna mode. Bob records the demo."}'
-
-# Full flow over the sample transcript
-AI_PROVIDER=anna node demo/run-demo.mjs   # or AI_PROVIDER=byok
-```
-
-On the platform these map to `anna-app executa dev --describe` /
-`--invoke <tool> --args '{...}'`.
-
-> The Node CLI has no `AnnaAppRuntime`, so `AI_PROVIDER=anna` there runs in mock.
-> For a real Anna LLM call, use the web app (A) inside an Anna app, or BYOK (B).
-
----
-
-## Tool contracts
-
-**detect_question** — in `{ transcript_chunk, meeting_context }` →
-out `{ is_question, question, confidence }`
-
-**answer_question** — in `{ question, meeting_context }` → out `{ answer }`
-
-**summarize_meeting** — in `{ transcript }` →
-out `{ summary, decisions[], action_items[], follow_up_email }`
+That call ([`bundle/app.js`](bundle/app.js)) powers all three tasks — detect →
+answer → summarize. The `llm` grant is declared in
+[`manifest.json`](manifest.json) under `ui.host_api` (without it the host returns
+`permission_denied`).
 
 ## Layout
 
 ```
 meeting-ai-anna/
-  web/                  # the Anna App page (anna.llm.complete)
-    index.html
-    app.mjs
-  serve.mjs             # zero-dep static server for the page
-  cli.mjs               # Executa dev runner (--describe / --invoke)
-  executa.json          # Executa tool manifest
-  app-manifest.json     # Anna app manifest
-  src/
-    anna/runtime.mjs    # ← Anna integration point: anna.llm.complete()
-    providers/          # annaProvider · byokProvider · resolver
-    core.mjs            # shared detect/answer/summarize (+ offline mock)
-    llm.mjs             # BYOK OpenAI-compatible HTTP call
-    prompts.mjs · tools.mjs · config.mjs
-  demo/                 # sample transcript + run-demo.mjs
+├── manifest.json     # schema-2 Anna App manifest (ui.bundle + ui.host_api: { llm: [complete] })
+├── app.json          # store listing (name, tagline, category)
+├── bundle/           # the SPA Anna runs in a sandboxed window
+│   ├── index.html    # iframe entry
+│   └── app.js        # connects to the host + anna.llm.complete()
+├── src/ + cli.mjs    # offline BYOK/mock harness (same prompts, no Anna needed)
+└── demo/             # sample transcript
 ```
 
-## Hackathon demo steps
+## Run it on Anna (you're set up — handle `@prash`)
 
-1. `npm run web` and open the page inside your Anna app.
-2. The sample transcript's question *"Can someone explain how this app works on
-   Anna without using a personal API key?"* is **detected → answered → summarized**
-   — all via `anna.llm.complete()`, **no key in the page**.
-3. Switch to BYOK anytime: `AI_PROVIDER=byok node demo/run-demo.mjs`.
+```bash
+anna-app validate          # schema + ACL checks on manifest.json
+anna-app dev               # runs the app locally → ✓ dashboard http://localhost:5180/
+```
 
-## Status
+`anna-app dev` serves the bundle and provides the host SDK at
+`/static/anna-apps/_sdk/latest/index.js`, so `anna.llm.complete()` is live. Open
+the dashboard, paste a transcript, hit **Run** → the sample question
+*"Can someone explain how this app works on Anna without using a personal API key?"*
+is detected → answered → summarized, **with no key in the app**.
 
-- ✅ Anna mode via the App Runtime (`anna.llm.complete`) — keyless.
-- ✅ BYOK mode intact (the desktop Meeting AI app is untouched).
-- ✅ All three Executa tools + CLI + web app + offline mock.
-- ⏳ `executa.json` / `app-manifest.json` field names are best-effort pending
-  Anna's published manifest spec — the tool logic and the runtime call are real.
+Useful flags: `anna-app dev --mock-llm <fixture>` (no live LLM), `--port 5180`.
+
+### Publish (when ready)
+
+```bash
+anna-app apps push                 # upsert the mutable working draft
+anna-app apps cut 0.1.0            # snapshot an immutable version
+anna-app apps release 0.1.0        # go live
+```
+
+## Offline dev without Anna (BYOK / mock)
+
+The Node CLI runs the **same prompts** against your own key or a deterministic
+mock — handy for iterating on prompt logic without the platform:
+
+```bash
+node cli.mjs --invoke detect_question  --args '{"transcript_chunk":"Can you explain the plan?"}'
+node cli.mjs --invoke answer_question  --args '{"question":"How does Anna mode work?"}'
+node cli.mjs --invoke summarize_meeting --args '{"transcript":"We shipped Anna mode."}'
+AI_PROVIDER=byok node demo/run-demo.mjs    # set BYOK_API_KEY for a live BYOK run
+```
+
+## Tool contracts
+
+- **detect_question** — `{ transcript_chunk, meeting_context }` → `{ is_question, question, confidence }`
+- **answer_question** — `{ question, meeting_context }` → `{ answer }`
+- **summarize_meeting** — `{ transcript }` → `{ summary, decisions[], action_items[], follow_up_email }`
+
+## Notes
+
+- `manifest.json` is built to the documented schema-2 shape; run `anna-app validate`
+  and, if it flags a field (e.g. the exact `ui.host_api` grant syntax), share the
+  message and it's a one-line fix.
+- Transcription stays separate (Web Speech / local) — it never uses an AI key.
