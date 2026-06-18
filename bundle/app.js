@@ -23,9 +23,13 @@ const ANSWER_SYSTEM =
   'You are Meeting AI, a live meeting copilot. Answer the question using the meeting context. ' +
   'Be concise, professional, and speakable. Do not refer to yourself as an AI.'
 const SUMMARIZE_SYSTEM =
-  'You are Meeting AI. Write a concise recap of the meeting transcript with short labelled ' +
-  'sections: Summary (one short paragraph), Decisions, Action items, and a brief Follow-up email. ' +
-  'If a section has nothing, write "None". Plain text / simple markdown — do NOT return JSON.'
+  'You are Meeting AI. Produce a clean meeting recap from the transcript with these labelled ' +
+  'sections, in this order:\n' +
+  'RECAP: 2-4 sentence summary of what happened.\n' +
+  'ACTION ITEMS: bullet list, each as "Owner — task" (use the speaker/name if mentioned, else "Unassigned").\n' +
+  'FOLLOW-UP QUESTIONS / NEXT STEPS: 2-4 bullets.\n' +
+  'DECISIONS: bullet list, or "None".\n' +
+  'If a section is empty write "None". Plain text / simple markdown — do NOT return JSON.'
 
 let anna = null
 
@@ -86,7 +90,7 @@ function renderQA(question) {
   return (text) => { a.classList.remove('muted'); a.textContent = text || '(no answer)' }
 }
 function renderSummary(text) {
-  card(`<div class="label">Meeting summary</div><div class="a">${esc(text || '(empty — try Summarize again)')}</div>`)
+  card(`<div class="label">Meeting recap — review, then Share</div><div class="a">${esc(text || '(empty — try Recap again)')}</div>`)
   return text
 }
 

@@ -1,7 +1,8 @@
-[10:02] Alice: Thanks everyone for joining the Anna hackathon sync.
-[10:02] Alice: Quick agenda — show Meeting AI running on Anna, then talk next steps.
-[10:03] Bob: Can someone explain how this app works on Anna without using Prashanth's API key?
-[10:03] Alice: Good question — that's exactly what we're demoing.
-[10:04] Carol: We decided to keep BYOK mode and add Anna as a second provider.
-[10:04] Bob: Action item for me: record the 2-minute demo video before Friday.
-[10:05] Alice: And Carol will write the README section comparing BYOK vs Anna mode.
+Alice: Let's lock the Anna hackathon submission. Are we shipping the Meeting AI app this week?
+Bob: Yes. I'll finish the 2-minute demo video by Thursday.
+Carol: I'll write the README and the submission notes by Wednesday.
+Dave: Do we need the upload grant enabled for the demo, or can we use the chat export?
+Alice: Use the chat export — decision: ship with chat export now, add file downloads later.
+Bob: What time is the submission deadline?
+Carol: Friday 5pm. I'll submit the GitHub link before then.
+Alice: Great. Next step is a dry run of the demo tomorrow morning.
