@@ -13,13 +13,6 @@ import { AnnaAppRuntime } from '/static/anna-apps/_sdk/latest/index.js'
 const $ = (id) => document.getElementById(id)
 const out = $('out')
 
-const SAMPLE = `Alice: Thanks everyone for joining the Anna hackathon sync.
-Bob: Can someone explain how this app works on Anna without using a personal API key?
-Carol: We decided to keep BYOK mode and add Anna as a second provider.
-Bob: Action item for me — record the 2-minute demo before Friday.
-Alice: Carol will write the README comparing BYOK vs Anna mode.`
-$('transcript').value = SAMPLE
-
 const DETECT_SYSTEM =
   'You are Meeting AI. Decide whether this transcript chunk contains a real question a ' +
   'participant wants answered. Return JSON only: {"is_question":boolean,"question":string,"confidence":number}.'
