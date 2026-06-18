@@ -66,25 +66,54 @@ async function summarize(transcript) {
 }
 
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-function card(html) { const d = document.createElement('div'); d.className = 'card'; d.innerHTML = html; out.appendChild(d); return d }
+function card(html) { const d = document.createElement('div'); d.className = 'card'; d.innerHTML = html; out.insertBefore(d, out.firstChild); return d }
+const ctx = () => $('transcript').value.slice(-4000) || 'Live meeting.'
 
-async function run() {
-  out.innerHTML = ''; $('run').disabled = true
-  const transcript = $('transcript').value
-  const context = 'Live meeting — Anna hackathon demo.'
-  const lines = transcript.split('\n').map((l) => l.replace(/^[^:]{1,40}:\s*/, '').trim()).filter(Boolean)
-  try {
-    for (const line of lines) {
-      const det = await detect(line, context)
-      if (det.is_question && det.confidence >= 0.6) {
-        const c = card(`<div class="q">❓ ${esc(det.question)}</div><div class="a">…thinking</div>`)
-        c.querySelector('.a').textContent = await answer(det.question, context)
-      }
+function renderQA(question) {
+  const c = card(`<div class="q">❓ ${esc(question)}</div><div class="a muted">…thinking</div>`)
+  const a = c.querySelector('.a')
+  return (text) => { a.classList.remove('muted'); a.textContent = text || '(no answer)' }
+}
+function renderSummary(s) {
+  const list = (arr) => (arr && arr.length) ? '<ul>' + arr.map((x) => `<li>${esc(x)}</li>`).join('') + '</ul>' : '<div class="muted">—</div>'
+  card(
+    `<div class="label">Meeting summary</div><div class="a">${esc(s.summary || '(none yet)')}</div>` +
+    `<div class="label" style="margin-top:10px">Decisions</div>${list(s.decisions)}` +
+    `<div class="label" style="margin-top:10px">Action items</div>${list(s.action_items)}` +
+    `<div class="label" style="margin-top:10px">Follow-up email</div><pre>${esc(s.follow_up_email || '—')}</pre>`,
+  )
+}
+
+// Serialize host calls so live speech + clicks never overlap.
+let chain = Promise.resolve()
+const enqueue = (fn) => (chain = chain.then(fn).catch((e) => { card(`<div class="q">Error</div><div class="a">${esc(e.message)}</div>`) }))
+
+// Live: detect a single utterance and, if it's a question, answer it.
+function processLine(line) {
+  const text = line.replace(/^[^:]{1,40}:\s*/, '').trim()
+  if (!text) return
+  enqueue(async () => {
+    const det = await detect(text, ctx())
+    if (det.is_question && det.confidence >= 0.6) {
+      const fill = renderQA(det.question)
+      fill(await answer(det.question, ctx()))
     }
-    card(`<div class="label">Meeting summary</div><pre>${esc(JSON.stringify(await summarize(transcript), null, 2))}</pre>`)
-  } catch (e) {
-    card(`<div class="q">Error</div><div class="a">${esc(e.message)}</div>`)
-  } finally { $('run').disabled = false }
+  })
+}
+
+// Ask: answer a typed question directly (no detection gate).
+function ask(question) {
+  const q = question.trim(); if (!q) return
+  enqueue(async () => { const fill = renderQA(q); fill(await answer(q, ctx())) })
+}
+
+function doSummarize() { enqueue(async () => renderSummary(await summarize($('transcript').value))) }
+
+// Process the whole transcript box (typed/pasted), then summarize.
+function run() {
+  const lines = $('transcript').value.split('\n')
+  for (const l of lines) processLine(l)
+  doSummarize()
 }
 
 // ── Live transcription via the browser Web Speech API ────────────────────────
@@ -104,7 +133,11 @@ function toggleListen() {
   if (listening) { listening = false; recog && recog.stop(); return }
   recog = new SR(); recog.continuous = true; recog.interimResults = true; recog.lang = 'en-US'
   recog.onresult = (e) => {
-    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) appendLine(e.results[i][0].transcript)
+    for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) {
+      const t = e.results[i][0].transcript
+      appendLine(t)
+      if (anna) processLine(t)   // live: detect + answer this utterance immediately
+    }
   }
   recog.onerror = (e) => {
     const hint = /not-allowed|service-not-allowed/.test(e.error) ? ' (the app window needs microphone permission)' : ''
@@ -116,15 +149,22 @@ function toggleListen() {
 }
 micBtn.addEventListener('click', toggleListen)
 
-// Connect to the Anna host, then enable the UI.
+// Always-on UI wiring (works regardless of Anna; reasoning needs the host).
+$('run').addEventListener('click', run)
+$('summarize').addEventListener('click', doSummarize)
+$('ask').addEventListener('click', () => { ask($('askInput').value); $('askInput').value = '' })
+$('askInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { ask($('askInput').value); $('askInput').value = '' } })
+$('clear').addEventListener('click', () => { $('transcript').value = ''; out.innerHTML = '' })
+
+// Connect to the Anna host.
 const statusEl = $('status')
+const reasoningBtns = ['run', 'summarize', 'ask']
 try {
   anna = await AnnaAppRuntime.connect()
   statusEl.textContent = 'Connected · anna.llm.complete()'
   statusEl.className = 'status live'
-  $('run').addEventListener('click', run)
 } catch (e) {
   statusEl.textContent = 'Anna runtime unavailable — run with `anna-app dev`'
   statusEl.className = 'status err'
-  $('run').disabled = true
+  reasoningBtns.forEach((id) => { $(id).disabled = true })
 }
