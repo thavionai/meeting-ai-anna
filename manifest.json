@@ -20,7 +20,9 @@
     "host_api": {
       "llm": ["complete"],
       "storage": ["get", "set", "delete"],
-      "window": ["resize"]
+      "window": ["resize"],
+      "upload": ["inline"],
+      "chat": ["append_artifact"]
     }
   }
 }

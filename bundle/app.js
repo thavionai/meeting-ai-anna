@@ -235,31 +235,68 @@ function emailConversation() {
 
 // ── Save / share the conversation ────────────────────────────────────────────
 const stamp = () => new Date().toISOString().slice(0, 10)
-function download(filename, content, mime) {
-  const url = URL.createObjectURL(new Blob([content], { type: mime }))
-  const a = document.createElement('a'); a.href = url; a.download = filename
-  document.body.appendChild(a); a.click(); a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 2000)
+// Downloads are blocked in the sandboxed iframe, so we save through the host:
+// upload.inline persists the file and chat.append_artifact posts the link.
+const b64utf8 = (s) => btoa(unescape(encodeURIComponent(s)))
+async function exportFile(filename, mime, content_b64, label) {
+  setMic('Saving ' + label + '…', 'live')
+  try {
+    const up = await anna.upload.inline({ filename, mime_type: mime, content_b64, purpose: 'user_artifact' })
+    await anna.chat.append_artifact({ artifact: { kind: 'document', summary: `Meeting AI export: ${filename}`, payload_ref: up.download_url, data: { filename, download_url: up.download_url } } })
+    setMic(`${label} saved → download link posted in the Anna chat`, 'live')
+  } catch (e) {
+    try {   // fallback: drop the conversation text straight into the chat
+      await anna.chat.append_artifact({ artifact: { kind: 'document', summary: `Meeting AI conversation (${label})`, data: { text: conversationText() } } })
+      setMic(`Couldn't save a file (${e.message}); posted the text to the Anna chat instead`, 'err')
+    } catch (e2) { setMic('Export failed: ' + (e2.message || e2), 'err') }
+  }
 }
-function saveTxt() { const t = conversationText(); if (t.trim()) download(`meeting-ai-${stamp()}.txt`, t, 'text/plain') }
+function saveTxt() { const t = conversationText(); if (t.trim()) exportFile(`meeting-ai-${stamp()}.txt`, 'text/plain', b64utf8(t), 'text') }
 function saveDoc() {
   const t = conversationText(); if (!t.trim()) return
   const html = `<html xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset="utf-8"></head>` +
     `<body style="font-family:Calibri,Arial,sans-serif"><h2>Meeting AI — conversation</h2>` +
     `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif">${esc(t)}</pre></body></html>`
-  download(`meeting-ai-${stamp()}.doc`, html, 'application/msword')
+  exportFile(`meeting-ai-${stamp()}.doc`, 'application/msword', b64utf8(html), 'Word')
 }
-function savePdf() {
-  const t = conversationText(); if (!t.trim()) return
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Meeting AI — ${stamp()}</title>` +
-    `<style>body{font:13px/1.6 Arial,sans-serif;padding:32px;color:#111}h2{margin:0 0 12px}pre{white-space:pre-wrap;font-family:Arial,sans-serif}</style>` +
-    `</head><body><h2>Meeting AI — conversation</h2><pre>${esc(t)}</pre></body></html>`
-  const f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
-  document.body.appendChild(f)
-  const d = f.contentWindow.document; d.open(); d.write(html); d.close()
-  let printed = false
-  const go = () => { if (printed) return; printed = true; try { f.contentWindow.focus(); f.contentWindow.print() } catch { /* blocked */ } setTimeout(() => f.remove(), 1500) }
-  f.onload = go; setTimeout(go, 400)   // browser print dialog → "Save as PDF"
+function savePdf() { const t = conversationText(); if (t.trim()) exportFile(`meeting-ai-${stamp()}.pdf`, 'application/pdf', btoa(buildPdf(t)), 'PDF') }
+
+// Minimal, self-contained PDF (downloads/print are blocked, so we build bytes).
+function buildPdf(text) {
+  const wrap = (s, n) => {
+    const out = []
+    for (const raw of s.split('\n')) {
+      let line = raw.replace(/[^\x20-\x7E]/g, '?')   // ASCII-only for byte-accurate /Length
+      if (!line) { out.push(''); continue }
+      while (line.length > n) { let cut = line.lastIndexOf(' ', n); if (cut < n * 0.5) cut = n; out.push(line.slice(0, cut)); line = line.slice(cut).replace(/^\s/, '') }
+      out.push(line)
+    }
+    return out
+  }
+  const lines = wrap(text, 95), perPage = 52, pages = []
+  for (let i = 0; i < lines.length; i += perPage) pages.push(lines.slice(i, i + perPage))
+  if (!pages.length) pages.push([''])
+  const escPdf = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+  const all = []
+  all[1] = '<< /Type /Catalog /Pages 2 0 R >>'
+  all[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+  let num = 4; const pageNums = []
+  for (const pg of pages) {
+    const cNum = num++, pNum = num++; pageNums.push(pNum)
+    let stream = 'BT /F1 11 Tf 50 790 Td 13 TL\n'
+    for (const ln of pg) stream += `(${escPdf(ln)}) Tj T*\n`
+    stream += 'ET'
+    all[cNum] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`
+    all[pNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${cNum} 0 R >>`
+  }
+  all[2] = `<< /Type /Pages /Kids [${pageNums.map((n) => n + ' 0 R').join(' ')}] /Count ${pageNums.length} >>`
+  let pdf = '%PDF-1.4\n'; const offsets = []
+  for (let i = 1; i < all.length; i++) { offsets[i] = pdf.length; pdf += `${i} 0 obj\n${all[i]}\nendobj\n` }
+  const xref = pdf.length
+  pdf += `xref\n0 ${all.length}\n0000000000 65535 f \n`
+  for (let i = 1; i < all.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n'
+  pdf += `trailer\n<< /Size ${all.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
+  return pdf
 }
 async function share() {
   const t = conversationText(); if (!t.trim()) return
