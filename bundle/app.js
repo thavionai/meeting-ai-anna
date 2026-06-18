@@ -97,13 +97,9 @@ const enqueue = (fn) => (chain = chain.then(fn).catch((e) => { card(`<div class=
 function processLine(line) {
   const text = line.replace(/^[^:]{1,40}:\s*/, '').trim()
   if (!text) return
-  enqueue(async () => {
-    const det = await detect(text, ctx())
-    if (det.is_question && det.confidence >= 0.5) {
-      const fill = renderQA(det.question)
-      fill(await answer(det.question, ctx()))
-    }
-  })
+  const h = heuristic(text)   // instant detection — no extra host round-trip
+  if (!h.is_question) return
+  enqueue(async () => { const fill = renderQA(h.question); fill(await answer(h.question, ctx())) })
 }
 
 // Ask: answer a typed question directly (no detection gate).
@@ -145,10 +141,18 @@ function toggleListen() {
     }
   }
   recog.onerror = (e) => {
-    const hint = /not-allowed|service-not-allowed/.test(e.error) ? ' (the app window needs microphone permission)' : ''
-    setMic('mic: ' + e.error + hint, 'err'); listening = false; micBtn.textContent = '🎤 Listen'
+    if (/not-allowed|service-not-allowed|audio-capture/.test(e.error)) {
+      // fatal: permission / hardware → actually stop
+      listening = false; micBtn.textContent = '🎤 Listen'
+      setMic('mic: ' + e.error + ' (the app window needs microphone permission)', 'err')
+    } else {
+      // transient (no-speech / aborted / network) → stay live; onend restarts
+      setMic('listening…', 'live')
+    }
   }
-  recog.onend = () => { if (listening) { try { recog.start() } catch {} } else { micBtn.textContent = '🎤 Listen'; setMic('stopped') } }
+  // Keep listening continuously until the user clicks Stop (Web Speech ends
+  // sessions on its own after pauses / final results — we just restart).
+  recog.onend = () => { if (listening) { try { recog.start() } catch { /* restarting */ } } else { micBtn.textContent = '🎤 Listen'; setMic('stopped') } }
   try { recog.start(); listening = true; micBtn.textContent = '⏹ Stop'; setMic('listening…', 'live') }
   catch (err) { setMic('could not start mic: ' + err.message, 'err') }
 }
