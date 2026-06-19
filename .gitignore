@@ -6,3 +6,6 @@ node_modules/
 
 # anna-app CLI local state
 .anna/
+
+# local-only demo notes
+VIDEO.md
