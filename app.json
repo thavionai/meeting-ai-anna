@@ -1,6 +1,7 @@
 {
   "name": "Meeting AI",
   "slug": "meeting-ai",
+  "version": "0.2.1",
   "tagline": "Live meeting copilot — detects questions, answers them, and summarizes. Powered by Anna, no API key.",
   "category": "productivity",
   "publisher": "ThavionAI",
