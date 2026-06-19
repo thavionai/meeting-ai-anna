@@ -2,7 +2,7 @@
   "name": "Meeting AI",
   "slug": "meeting-ai",
   "tagline": "Live meeting copilot — detects questions, answers them, and summarizes. Powered by Anna, no API key.",
-  "category": "Productivity",
+  "category": "productivity",
   "publisher": "ThavionAI",
   "homepage": "https://thavionai.com"
 }
