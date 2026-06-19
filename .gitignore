@@ -13,3 +13,6 @@ VIDEO.md
 # local-only submission deck
 *.pptx
 build_submission_deck.py
+
+# keep the huge source recording local; push the compressed .mp4
+*.mov
