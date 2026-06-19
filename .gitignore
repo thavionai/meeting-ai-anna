@@ -9,3 +9,7 @@ node_modules/
 
 # local-only demo notes
 VIDEO.md
+
+# local-only submission deck
+*.pptx
+build_submission_deck.py
