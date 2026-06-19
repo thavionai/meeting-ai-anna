@@ -1,6 +1,6 @@
 {
   "name": "meeting-ai-anna",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "Meeting AI on Anna — detect questions, answer them, and recap meetings. Two live surfaces: an Anna App (anna.llm.complete) and an Executa plugin (host sampling). No API key.",
