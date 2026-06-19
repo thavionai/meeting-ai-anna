@@ -1,0 +1,10 @@
+{
+  "name": "meeting-ai-executa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "plugin.mjs",
+  "description": "Meeting AI Executa plugin — detect_question / answer_question / summarize_meeting via Anna host sampling.",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node plugin.mjs" }
+}

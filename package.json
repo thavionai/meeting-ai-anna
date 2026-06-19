@@ -3,15 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Meeting AI as an Anna App — detects questions, answers them, and summarizes meetings via anna.llm.complete (no API key). Includes an offline BYOK/mock CLI.",
+  "description": "Meeting AI on Anna — detect questions, answer them, and recap meetings. Two live surfaces: an Anna App (anna.llm.complete) and an Executa plugin (host sampling). No API key.",
   "engines": { "node": ">=18" },
   "scripts": {
     "dev": "anna-app dev",
     "validate": "anna-app validate",
-    "describe": "node cli.mjs --describe",
-    "detect": "node cli.mjs --invoke detect_question --args",
-    "answer": "node cli.mjs --invoke answer_question --args",
-    "summarize": "node cli.mjs --invoke summarize_meeting --args",
-    "demo": "node demo/run-demo.mjs"
+    "executa:dev": "cd executas/meeting-ai && anna-app executa dev",
+    "executa:test": "node executas/meeting-ai/test-roundtrip.mjs"
   }
 }

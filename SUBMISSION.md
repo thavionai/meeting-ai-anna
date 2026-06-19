@@ -86,9 +86,16 @@ Alice: Great. Next step is a dry run of the demo tomorrow morning.
 
 ---
 
+## Two surfaces, both keyless
+
+- **Anna App** (UI bundle) — the demo above; calls `anna.llm.complete()`.
+- **Executa plugin** ([`executas/meeting-ai/`](executas/meeting-ai/)) — the same
+  workflow as a stdio JSON-RPC tool that runs every call through host
+  `sampling/createMessage` (test: `node executas/meeting-ai/test-roundtrip.mjs`).
+
 ## Anna features used
 
-- `anna.llm.complete` — recap, live answers (host LLM, keyless)
+- `anna.llm.complete` (App) / `sampling/createMessage` (Executa) — host LLM, keyless
 - `anna.storage` — persistent history (per-app)
 - `anna.chat.append_artifact` — share/export the recap into the conversation
 - `anna.window.resize` — minimize to a compact bar
