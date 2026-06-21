@@ -1,0 +1,53 @@
+{
+  "name": "meeting-ai-anna",
+  "slug": "meeting-ai-anna",
+  "display_name": "Meeting AI Anna",
+  "version": "0.1.0",
+  "description": "Detects questions in a meeting transcript, answers them, and writes a recap with action items, owners and next steps — via Anna host sampling. No API key.",
+  "author": "ThavionAI",
+  "homepage": "https://thavionai.com",
+  "license": "MIT",
+  "category": "productivity",
+  "runtime": "node",
+  "distribution": {
+    "type": "npm",
+    "package_name": "thavionai-meeting-ai-executa",
+    "command": "npx -y thavionai-meeting-ai-executa"
+  },
+  "capabilities": { "sampling": {} },
+  "tools": [
+    {
+      "name": "detect_question",
+      "description": "Decide whether a transcript chunk contains a real question.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "transcript_chunk": { "type": "string" },
+          "meeting_context": { "type": "string" }
+        },
+        "required": ["transcript_chunk"]
+      }
+    },
+    {
+      "name": "answer_question",
+      "description": "Answer a question using the meeting context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "meeting_context": { "type": "string" }
+        },
+        "required": ["question"]
+      }
+    },
+    {
+      "name": "summarize_meeting",
+      "description": "Recap a transcript: summary, action items + owners, next steps, decisions.",
+      "parameters": {
+        "type": "object",
+        "properties": { "transcript": { "type": "string" } },
+        "required": ["transcript"]
+      }
+    }
+  ]
+}
