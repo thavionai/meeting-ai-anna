@@ -2,7 +2,7 @@
   "name": "meeting-ai-anna",
   "slug": "meeting-ai-anna",
   "display_name": "Meeting AI Anna",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Detects questions in a meeting transcript, answers them, and writes a recap with action items, owners and next steps — via Anna host sampling. No API key.",
   "author": "ThavionAI",
   "homepage": "https://thavionai.com",
