@@ -1,9 +1,12 @@
 {
   "name": "Meeting AI Anna",
   "slug": "meeting-ai-anna",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "tagline": "Live meeting copilot — detects questions, answers them, and summarizes. Powered by Anna, no API key.",
   "category": "productivity",
   "publisher": "ThavionAI",
-  "homepage": "https://thavionai.com"
+  "homepage": "https://thavionai.com",
+  "bundled_executas": {
+    "meeting-ai": { "path": "./executas/meeting-ai" }
+  }
 }

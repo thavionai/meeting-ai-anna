@@ -1,6 +1,8 @@
 {
   "schema": 2,
-  "required_executas": [],
+  "required_executas": [
+    { "tool_id": "bundled:meeting-ai" }
+  ],
   "optional_executas": [],
   "tags": ["productivity", "meetings", "copilot"],
   "system_prompt_addendum": "Meeting AI detects questions in a meeting transcript, answers them, and produces summaries / action items — using the host LLM via anna.llm.complete.",
@@ -12,7 +14,7 @@
     "views": [
       {
         "name": "main",
-        "title": "Meeting AI",
+        "title": "Meeting AI Anna",
         "default_size": { "w": 880, "h": 720 },
         "min_size": { "w": 480, "h": 480 }
       }
